@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>WebXR Load Cubing and Guided Picking - CG</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- Tudo o que está em #overlay continua visível durante o AR: este elemento é
+     a raiz do "DOM overlay" pedido na sessão WebXR (js/main.js). -->
+<div id="overlay">
+
+    <!-- Painel de informações: módulo, orientação, próxima caixa, cubagem e regras. -->
+    <div class="panel">
+        <div id="panelTitle" class="title">Load Cubing &amp; Guided Picking <span class="hint">(tap to collapse/expand)</span></div>
+        <div class="tabs">
+            <button id="modeCubing" class="tab">A · Pallet cubing</button>
+            <button id="modePicking" class="tab">B · Truck bed</button>
+        </div>
+        <div class="details">
+            <div id="status" class="status"></div>
+            <div class="next"><span id="nextSwatch" class="swatch"></span><b>Next box:</b>&nbsp;<span id="nextText"></span></div>
+            <div id="stats" class="stats"></div>
+            <div id="legend" class="legend"></div>
+            <!-- Aviso sobre o suporte a AR do aparelho (some durante o AR). -->
+            <div id="banner" class="banner"></div>
+        </div>
+    </div>
+
+    <!-- Mira no centro da tela (módulo B, durante o AR). -->
+    <div id="crosshair" hidden></div>
+
+    <!-- Mensagens rápidas (por exemplo, "não é possível colocar aqui"). -->
+    <div id="toast" hidden></div>
+
+    <!-- Barra de ações. -->
+    <div class="toolbar">
+        <button id="btnRotate">Rotate 90°</button>
+        <button id="btnNewBox">New box</button>
+        <button id="btnClear">Clear boxes</button>
+        <button id="btnMove">Re-place area</button>
+        <button id="btnScale">Scale: full size</button>
+        <button id="btnExit" hidden>Exit AR</button>
+    </div>
+
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

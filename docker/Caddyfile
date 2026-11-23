@@ -1,0 +1,19 @@
+# Servidor interno do contêiner: só entrega os arquivos estáticos. Não precisa de
+# HTTPS aqui, porque o Caddy do calico recebe as conexões e repassa para cá.
+{
+	admin off
+	auto_https off
+}
+
+:80 {
+	root * /srv
+	file_server
+
+	# Sempre revalida com o servidor (ETag): uma versão nova aparece no próximo
+	# acesso, sem o celular continuar usando js/ antigos do cache.
+	@app not path /lib/*
+	header @app Cache-Control "no-cache"
+
+	# a biblioteca do Three.js não muda entre deploys: pode ficar um dia em cache
+	header /lib/* Cache-Control "public, max-age=86400"
+}

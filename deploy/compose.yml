@@ -1,0 +1,22 @@
+# Pilha de produção do cubing, na mesma VPS do calico (em /home/ubuntu/cubing).
+#
+# Não abre porta nenhuma: o contêiner entra só na rede calico_web, que ele divide
+# apenas com o Caddy do calico, com o apelido "cubing". O Caddy, que já cuida do
+# HTTPS, repassa cubing.karolayne.com para cubing:80 (deploy/Caddyfile do calico).
+# Ele nunca entra na calico_default, onde estão o app e o banco do calico.
+# A imagem é gerada pelo GitHub Actions (.github/workflows/deploy.yml) e baixada
+# do GHCR pelo update.sh; a VPS não compila nada.
+services:
+  web:
+    image: ${CUBING_IMAGE:?set CUBING_IMAGE (update.sh writes it to .env)}:latest
+    restart: unless-stopped
+    # site estático: pouca memória basta (a VPS tem 1 GB, dividido com o calico)
+    mem_limit: 64m
+    networks:
+      web:
+        aliases: [cubing]
+
+networks:
+  web:
+    external: true
+    name: calico_web

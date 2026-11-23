@@ -1,0 +1,62 @@
+/* Página em tela cheia: o canvas do Three.js fica atrás e a interface por cima. */
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000;
+             font-family: system-ui, sans-serif; color: #f2f2f2; }
+canvas { display: block; }
+[hidden] { display: none !important; }
+
+/* Raiz do DOM overlay: não bloqueia toques, só os painéis recebem eventos. */
+#overlay { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+#overlay .panel, #overlay .toolbar button { pointer-events: auto; }
+
+.panel {
+    position: absolute; top: 10px; left: 10px; right: 10px; max-width: 420px;
+    background: rgba(20, 22, 26, 0.78); border-radius: 10px; padding: 10px 12px;
+    font-size: 13px; line-height: 1.4;
+}
+.title { font-weight: 700; font-size: 15px; cursor: pointer; }
+.title .hint { font-weight: 400; font-size: 11px; color: #9aa3ad; }
+/* Recolhido: mantém só a orientação e a próxima caixa (o essencial no AR). */
+.collapsed .stats, .collapsed .legend, .collapsed .banner { display: none; }
+
+.tabs { display: flex; gap: 6px; margin: 8px 0; }
+.tab { flex: 1; }
+.tab.active { background: #f2f2f2; color: #111; }
+
+.status { padding: 6px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.08); margin-bottom: 6px; }
+.status.warn { background: #ffd400; color: #111; font-weight: 600; }
+
+.next { display: flex; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
+.swatch, .sw { display: inline-block; width: 14px; height: 14px; border-radius: 3px;
+               margin-right: 6px; vertical-align: -2px; border: 1px solid rgba(255, 255, 255, 0.6); }
+.sw { width: 10px; height: 10px; margin-right: 3px; }
+.stats { color: #cfd6dd; margin-bottom: 4px; }
+.legend { color: #9aa3ad; font-size: 11px; }
+
+button {
+    font: inherit; font-size: 13px; color: #f2f2f2; background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 8px; padding: 8px 10px; cursor: pointer;
+}
+button:disabled { opacity: 0.4; cursor: default; }
+
+/* A barra fica acima do botão "START AR" do ARButton; no AR esse botão some. */
+.toolbar {
+    position: absolute; left: 0; right: 0; bottom: 76px;
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 0 10px;
+}
+.toolbar button { background: rgba(20, 22, 26, 0.8); }
+.ar .toolbar { bottom: 16px; }
+
+.banner { margin-top: 6px; font-size: 11px; color: #ffd98a; }
+.ar .banner { display: none; }
+
+#crosshair {
+    position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px;
+    border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+
+#toast {
+    position: absolute; left: 50%; bottom: 140px; transform: translateX(-50%);
+    background: #ffd400; color: #111; font-weight: 600; padding: 8px 14px; border-radius: 8px;
+    max-width: 90%; text-align: center;
+}
+.ar #toast { bottom: 80px; }

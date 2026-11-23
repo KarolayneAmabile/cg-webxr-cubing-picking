@@ -1,0 +1,132 @@
+# Testa, gera a imagem Docker do site, publica no GHCR e faz o deploy na VPS (a mesma do calico).
+#
+# Mesmo caminho de deploy do calico: GitHub OIDC -> papel da AWS `cubing-github-deploy` (só pode
+# rodar AWS-RunShellScript na instância da VPS) -> AWS SSM -> deploy/update.sh no servidor (pull,
+# restart, verificação). Nenhuma porta SSH é aberta e nenhuma credencial fixa fica no GitHub.
+#
+# Antes do primeiro deploy, criar na AWS o papel `cubing-github-deploy` (ver README, seção Deploy).
+name: Build and deploy
+
+on:
+  push:
+    branches: [main]
+    # não roda quando o push só muda documentação
+    paths-ignore:
+      - '**.md'
+      - 'especificacao.txt'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.vscode/**'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+# Actions de terceiros fixadas por commit (as mesmas versões do calico); o comentário diz a versão.
+
+env:
+  AWS_REGION: us-east-1
+  AWS_DEPLOY_ROLE: arn:aws:iam::078601608558:role/cubing-github-deploy
+  # mesma instância do calico
+  INSTANCE_ID: i-03d48a1982e6632f2
+
+jobs:
+  # Testes das regras (cores, empilhamento, cubagem). build e deploy só rodam se passarem.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Unit tests
+        run: npm test
+
+  build:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.name }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # o GHCR exige o nome em minúsculas
+      - id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:latest
+            ${{ steps.image.outputs.name }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ env.AWS_DEPLOY_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy through AWS SSM
+        env:
+          # temporário: só vale enquanto este job roda; usado pela VPS para baixar a imagem privada
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+          CUBING_IMAGE: ${{ needs.build.outputs.image }}
+        run: |
+          set -euo pipefail
+          # envia os arquivos da pilha junto com o comando, para a VPS sempre bater com este commit
+          bundle=$(tar -czf - -C deploy compose.yml update.sh | base64 -w0)
+          # o SSM roda como root: a pasta precisa ser do ubuntu, que é quem extrai e roda o
+          # update.sh (install -d também corrige a dona de uma pasta já criada como root)
+          script="set -e
+          install -d -o ubuntu -g ubuntu /home/ubuntu/cubing
+          echo '$bundle' | base64 -d | runuser -u ubuntu -- tar -xzf - -C /home/ubuntu/cubing
+          cd /home/ubuntu/cubing
+          runuser -u ubuntu -- env HOME=/home/ubuntu GHCR_USER='$GHCR_USER' GHCR_TOKEN='$GHCR_TOKEN' CUBING_IMAGE='$CUBING_IMAGE' IMAGE_TAG='$GITHUB_SHA' bash ./update.sh"
+          params=$(jq -n --arg s "$script" '{commands: [$s], executionTimeout: ["600"]}')
+
+          id=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "Cubing deploy ${GITHUB_SHA::7}" \
+            --parameters "$params" \
+            --query Command.CommandId --output text)
+          echo "SSM command: $id"
+
+          for _ in $(seq 1 60); do
+            sleep 10
+            status=$(aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCE_ID" \
+              --query Status --output text 2>/dev/null || echo Pending)
+            case "$status" in Pending|InProgress|Delayed) continue ;; esac
+            break
+          done
+
+          aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCE_ID" \
+            --query '[StandardOutputContent, StandardErrorContent]' --output text
+          echo "Status: $status"
+          [ "$status" = "Success" ]

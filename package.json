@@ -1,0 +1,9 @@
+{
+  "name": "cg-webxr-cubing-picking",
+  "private": true,
+  "type": "module",
+  "description": "WebXR augmented reality for load cubing and guided picking (Computer Graphics project)",
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\""
+  }
+}
